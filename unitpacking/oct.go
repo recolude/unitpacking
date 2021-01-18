@@ -28,7 +28,8 @@ func multVect(a, b vector.Vector2) vector.Vector2 {
 	)
 }
 
-// PackOct24 maps a unit vector to a 2D
+// PackOct24 maps a unit vector to a 2D UV of a octahedron, and then writes the
+// 2D coordinates to 3 bytes, 12bits per coordinate.
 func PackOct24(v vector.Vector3) []byte {
 	uvCords := MapToOctUV(v)
 
@@ -44,6 +45,8 @@ func PackOct24(v vector.Vector3) []byte {
 	}
 }
 
+// UnpackOct24 reads in two 12bit numbers and converts from 2D octahedron UV to
+// 3D unit sphere coordinates
 func UnpackOct24(b []byte) vector.Vector3 {
 	everything := uint(b[0]) | (uint(b[1]) << 8) | (uint(b[2]) << 16)
 	rawY := (int)((everything) & 0b111111111111)
@@ -55,6 +58,7 @@ func UnpackOct24(b []byte) vector.Vector3 {
 	return FromOctUV(vector.NewVector2(cleanedX, cleanedY))
 }
 
+// MapToOctUV converts a 3D sphere's coordinates to a 2D octahedron UV
 func MapToOctUV(v vector.Vector3) vector.Vector2 {
 	// Project the sphere onto the octahedron, and then onto the xy plane
 	// vec2 p = v.xy * (1.0 / (abs(v.x) + abs(v.y) + abs(v.z)));
@@ -68,6 +72,7 @@ func MapToOctUV(v vector.Vector3) vector.Vector2 {
 	return multVect(signNotZero(p), vector.NewVector2(1.0-math.Abs(p.Y()), 1.0-math.Abs(p.X())))
 }
 
+// FromOctUV converts a 2D octahedron UV coordinate to a point on a 3D sphere.
 func FromOctUV(e vector.Vector2) vector.Vector3 {
 	// vec3 v = vec3(e.xy, 1.0 - abs(e.x) - abs(e.y));
 	v := vector.NewVector3(e.X(), e.Y(), 1.0-math.Abs(e.X())-math.Abs(e.Y()))
