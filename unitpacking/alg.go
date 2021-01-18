@@ -34,6 +34,8 @@ func PackAlg24(v vector.Vector3) []byte {
 	}
 }
 
+// UnpackAlg24 will take a previously packed vector and extract it out of 3
+// bytes
 func UnpackAlg24(b []byte) vector.Vector3 {
 	everything := uint(b[0]) | (uint(b[1]) << 8) | (uint(b[2]) << 16)
 	rawZ := (everything & 1) == 1
