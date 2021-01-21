@@ -42,7 +42,7 @@ func (ds dataset) Write(out io.Writer) (int, error) {
 			avgErrOut = fmt.Sprintf("%.6f", *e.avgError)
 		}
 
-		n, err := fmt.Fprintf(out, "| %s | %s | %s | %s | %d b | %d b | %.4f\n", ds.set, e.method, runtimeOut, avgErrOut, e.uncomressed, e.compressed, float64(e.uncomressed)/float64(e.compressed))
+		n, err := fmt.Fprintf(out, "| %s | %s | %s | %s | %d b | %d b | %.4f |\n", ds.set, e.method, runtimeOut, avgErrOut, e.uncomressed, e.compressed, float64(e.uncomressed)/float64(e.compressed))
 		writtenCount += n
 		if err != nil {
 			return writtenCount, err
@@ -163,7 +163,7 @@ func calcFlatNormals(m mango.Mesh) []vector.Vector3 {
 
 	for _, tri := range m.Triangles() {
 		// normalize(cross(B-A, C-A))
-		normalized := m.Vertices()[tri.P2()].Sub(m.Vertices()[tri.P1()]).Cross(m.Vertices()[tri.P3()].Sub(m.Vertices()[tri.P1()]))
+		normalized := m.Vertices()[tri.P2()].Sub(m.Vertices()[tri.P1()]).Cross(m.Vertices()[tri.P3()].Sub(m.Vertices()[tri.P1()])).Normalized()
 		normals[tri.P1()] = normalized
 		normals[tri.P2()] = normalized
 		normals[tri.P3()] = normalized
@@ -176,11 +176,16 @@ func calcSmoothNormals(m mango.Mesh) []vector.Vector3 {
 	normals := make([]vector.Vector3, len(m.Vertices()))
 	for _, tri := range m.Triangles() {
 		// normalize(cross(B-A, C-A))
-		normalized := m.Vertices()[tri.P2()].Sub(m.Vertices()[tri.P1()]).Cross(m.Vertices()[tri.P3()].Sub(m.Vertices()[tri.P1()]))
+		normalized := m.Vertices()[tri.P2()].Sub(m.Vertices()[tri.P1()]).Cross(m.Vertices()[tri.P3()].Sub(m.Vertices()[tri.P1()])).Normalized()
 		normals[tri.P1()] = normals[tri.P1()].Add(normalized)
 		normals[tri.P2()] = normals[tri.P2()].Add(normalized)
 		normals[tri.P3()] = normals[tri.P3()].Add(normalized)
 	}
+
+	for i, n := range normals {
+		normals[i] = n.Normalized()
+	}
+
 	return normals
 }
 
@@ -361,7 +366,10 @@ func main() {
 		if err != nil {
 			continue
 		}
+
 		datasetName := filepath.Base(f)
+		extension := filepath.Ext(datasetName)
+		datasetName = datasetName[0 : len(datasetName)-len(extension)]
 
 		_, err = runDataset(calcFlatNormals(model), datasetName+" Flat", unitWriters).Write(os.Stdout)
 		if err != nil {
