@@ -22,6 +22,10 @@ import (
 	"github.com/recolude/unitpacking/unitpacking"
 )
 
+func formatSize(sizeInBytes int) string {
+	return fmt.Sprintf("%d KB", sizeInBytes/1024)
+}
+
 type dataset struct {
 	set     string
 	entries []runResultEntry
@@ -42,7 +46,24 @@ func (ds dataset) Write(out io.Writer) (int, error) {
 			avgErrOut = fmt.Sprintf("%.6f", *e.avgError)
 		}
 
-		n, err := fmt.Fprintf(out, "| %s | %s | %s | %s | %d b | %d b | %.4f |\n", ds.set, e.method, runtimeOut, avgErrOut, e.uncomressed, e.compressed, float64(e.uncomressed)/float64(e.compressed))
+		compressedFmted := fmt.Sprintf("%.4f", float64(e.uncomressed)/float64(e.compressed))
+
+		// compressing it made it worse.
+		if e.compressed > e.uncomressed {
+			compressedFmted = fmt.Sprintf("<div style=\"color:red\">%s</div>", compressedFmted)
+		}
+
+		n, err := fmt.Fprintf(
+			out,
+			"| %s | %s | %s | %s | %s | %s | %s |\n",
+			ds.set,
+			e.method,
+			runtimeOut,
+			avgErrOut,
+			formatSize(e.uncomressed),
+			formatSize(e.compressed),
+			compressedFmted,
+		)
 		writtenCount += n
 		if err != nil {
 			return writtenCount, err
@@ -105,13 +126,16 @@ func runBenchEnry(unitVectors []vector.Vector3, uw unitWriter) runResultEntry {
 	if err != nil {
 		panic(err)
 	}
-	for _, v := range unitVectors {
+	for x, v := range unitVectors {
 		unpacked := uw.unpack(uw.pack(v))
 		out.Write(uw.pack(v))
 		comressedWriter.Write(uw.pack(v))
 		accErr += math.Abs(v.X() - unpacked.X())
 		accErr += math.Abs(v.Y() - unpacked.Y())
 		accErr += math.Abs(v.Z() - unpacked.Z())
+		if math.IsNaN(accErr) {
+			panic("somehow got to nan: " + fmt.Sprint(x))
+		}
 	}
 
 	comressedWriter.Flush()
@@ -160,10 +184,14 @@ func getDatasetPathsFromDir(dir string) ([]string, error) {
 func calcFlatNormals(m mango.Mesh) []vector.Vector3 {
 
 	normals := make([]vector.Vector3, len(m.Vertices()))
+	for i := range normals {
+		normals[i] = vector.Vector3One()
+	}
 
+	verts := m.Vertices()
 	for _, tri := range m.Triangles() {
 		// normalize(cross(B-A, C-A))
-		normalized := m.Vertices()[tri.P2()].Sub(m.Vertices()[tri.P1()]).Cross(m.Vertices()[tri.P3()].Sub(m.Vertices()[tri.P1()])).Normalized()
+		normalized := verts[tri.P2()].Sub(verts[tri.P1()]).Cross(verts[tri.P3()].Sub(verts[tri.P1()])).Normalized()
 		normals[tri.P1()] = normalized
 		normals[tri.P2()] = normalized
 		normals[tri.P3()] = normalized
@@ -174,9 +202,22 @@ func calcFlatNormals(m mango.Mesh) []vector.Vector3 {
 
 func calcSmoothNormals(m mango.Mesh) []vector.Vector3 {
 	normals := make([]vector.Vector3, len(m.Vertices()))
+	for i := range normals {
+		normals[i] = vector.Vector3One()
+	}
+
 	for _, tri := range m.Triangles() {
 		// normalize(cross(B-A, C-A))
-		normalized := m.Vertices()[tri.P2()].Sub(m.Vertices()[tri.P1()]).Cross(m.Vertices()[tri.P3()].Sub(m.Vertices()[tri.P1()])).Normalized()
+		p1 := m.Vertices()[tri.P1()]
+		p2 := m.Vertices()[tri.P2()]
+		p3 := m.Vertices()[tri.P3()]
+		normalized := p2.Sub(p1).Cross(p3.Sub(p1)).Normalized()
+
+		// This occurs whenever the given tri is actually just a line
+		if math.IsNaN(normalized.X()) {
+			continue
+		}
+
 		normals[tri.P1()] = normals[tri.P1()].Add(normalized)
 		normals[tri.P2()] = normals[tri.P2()].Add(normalized)
 		normals[tri.P3()] = normals[tri.P3()].Add(normalized)
@@ -338,10 +379,11 @@ func main() {
 
 	for i := 0; i < numOfVectors; i++ {
 		unitVectors[i] = vector.NewVector3(
-			rand.Float64(),
-			rand.Float64(),
-			rand.Float64(),
+			(rand.Float64()*2.0)-1,
+			(rand.Float64()*2.0)-1,
+			(rand.Float64()*2.0)-1,
 		).Normalized()
+
 	}
 
 	pathToLoadFrom := "../../../common-3d-test-models/data"

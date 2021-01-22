@@ -42,9 +42,12 @@ func UnpackAlg24(b []byte) vector.Vector3 {
 	rawY := (int)((everything >> 1) & 0b11111111111)
 	rawX := (int)(everything >> 12)
 
-	cleanedX := clamp((float64(rawX)-2048.0)/2047.0, -1.0, 1.0)
-	cleanedY := clamp((float64(rawY)-1024.0)/1023.0, -1.0, 1.0)
+	cleanedX := (float64(rawX) - 2048.0) / 2047.0
+	cleanedY := (float64(rawY) - 1024.0) / 1023.0
 	cleanedZ := math.Sqrt(1.0 - (cleanedX * cleanedX) - (cleanedY * cleanedY))
+	if math.IsNaN(cleanedZ) {
+		cleanedZ = 0
+	}
 	if !rawZ {
 		cleanedZ *= -1
 	}

@@ -20,6 +20,7 @@ func TestOctPack24(t *testing.T) {
 		vector.NewVector3(0, 0, -1),
 		vector.NewVector3(-1, -1, -1),
 		vector.NewVector3(-1, 1, -1),
+		vector.NewVector3(-0.997605826445425, 0.06365823804882093, -0.027023022974122023),
 	}
 
 	for _, tc := range tests {
