@@ -28,6 +28,37 @@ func multVect(a, b vector.Vector2) vector.Vector2 {
 	)
 }
 
+// PackOct32 maps a unit vector to a 2D UV of a octahedron, and then writes the
+// 2D coordinates to 4 bytes, 2 bytes per coordinate.
+func PackOct32(v vector.Vector3) []byte {
+	uvCords := MapToOctUV(v)
+
+	// 2 ^ 16 = 65,536;
+	x := uint(math.Floor(uvCords.X()*32767) + 32768)
+	y := uint(math.Floor(uvCords.Y()*32767) + 32768)
+	everything := (x << 16) | y
+
+	return []byte{
+		(byte)(everything & 0xFF),
+		(byte)((everything >> 8) & 0xFF),
+		(byte)((everything >> 16) & 0xFF),
+		(byte)((everything >> 24) & 0xFF),
+	}
+}
+
+// UnpackOct32 reads in two 16bit numbers and converts from 2D octahedron UV to
+// 3D unit sphere coordinates
+func UnpackOct32(b []byte) vector.Vector3 {
+	everything := uint(b[0]) | (uint(b[1]) << 8) | (uint(b[2]) << 16) | (uint(b[3]) << 24)
+	rawY := (int)((everything) & 0xFFFF)
+	rawX := (int)(everything >> 16)
+
+	cleanedX := clamp((float64(rawX)-32768.0)/32767.0, -1.0, 1.0)
+	cleanedY := clamp((float64(rawY)-32768.0)/32767.0, -1.0, 1.0)
+
+	return FromOctUV(vector.NewVector2(cleanedX, cleanedY))
+}
+
 // PackOct24 maps a unit vector to a 2D UV of a octahedron, and then writes the
 // 2D coordinates to 3 bytes, 12bits per coordinate.
 func PackOct24(v vector.Vector3) []byte {

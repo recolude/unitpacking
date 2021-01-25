@@ -31,6 +31,43 @@ type dataset struct {
 	entries []runResultEntry
 }
 
+func (ds dataset) WriteCSV(out io.Writer) (int, error) {
+	writtenCount := 0
+
+	for _, e := range ds.entries {
+
+		runtimeOut := "NA"
+		if e.duration != nil {
+			runtimeOut = fmt.Sprintf("%s", *e.duration)
+		}
+
+		avgErrOut := "NA"
+		if e.avgError != nil {
+			avgErrOut = fmt.Sprintf("%.6f", *e.avgError)
+		}
+
+		compressedFmted := fmt.Sprintf("%.4f", float64(e.uncomressed)/float64(e.compressed))
+
+		n, err := fmt.Fprintf(
+			out,
+			"\"%s\", \"%s\", %s, %s, %d, %d, %s\n",
+			ds.set,
+			e.method,
+			runtimeOut,
+			avgErrOut,
+			e.uncomressed,
+			e.compressed,
+			compressedFmted,
+		)
+		writtenCount += n
+		if err != nil {
+			return writtenCount, err
+		}
+	}
+
+	return writtenCount, nil
+}
+
 func (ds dataset) Write(out io.Writer) (int, error) {
 	writtenCount := 0
 
@@ -108,6 +145,12 @@ type coarse24Writer struct{ out io.Writer }
 func (coarse24w coarse24Writer) method() string                 { return "coarse24" }
 func (coarse24w coarse24Writer) pack(v vector.Vector3) []byte   { return unitpacking.PackCoarse24(v) }
 func (coarse24w coarse24Writer) unpack(b []byte) vector.Vector3 { return unitpacking.UnpackCoarse24(b) }
+
+type oct32Writer struct{ out io.Writer }
+
+func (oct32w oct32Writer) method() string                 { return "oct32" }
+func (oct32w oct32Writer) pack(v vector.Vector3) []byte   { return unitpacking.PackOct32(v) }
+func (oct32w oct32Writer) unpack(b []byte) vector.Vector3 { return unitpacking.UnpackOct32(b) }
 
 func runBenchEnry(unitVectors []vector.Vector3, uw unitWriter) runResultEntry {
 	accErr := 0.0
@@ -373,6 +416,32 @@ func runbaseline(unitVectors []vector.Vector3) runResultEntry {
 	}
 }
 
+func writeObj(mesh mango.Mesh, normals []vector.Vector3, out io.Writer) error {
+
+	for _, n := range mesh.Vertices() {
+		_, err := fmt.Fprintf(out, "v %f %f %f\n", n.X(), n.Y(), n.Z())
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, n := range normals {
+		_, err := fmt.Fprintf(out, "vn %f %f %f\n", n.X(), n.Y(), n.Z())
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, n := range mesh.Triangles() {
+		_, err := fmt.Fprintf(out, "f %d//%d %d//%d %d//%d\n", n.P1()+1, n.P1()+1, n.P2()+1, n.P2()+1, n.P3()+1, n.P3()+1)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func main() {
 	numOfVectors := 10000000
 	unitVectors := make([]vector.Vector3, numOfVectors)
@@ -383,10 +452,10 @@ func main() {
 			(rand.Float64()*2.0)-1,
 			(rand.Float64()*2.0)-1,
 		).Normalized()
-
 	}
 
 	pathToLoadFrom := "../../../common-3d-test-models/data"
+	writeCSV := true
 	// pathToLoadFrom := os.Args[1]
 	availableFiles, err := getDatasetPathsFromDir(pathToLoadFrom)
 	if err != nil {
@@ -397,12 +466,22 @@ func main() {
 		alg24Writer{os.Stdout},
 		coarse24Writer{os.Stdout},
 		oct24Writer{os.Stdout},
+		oct32Writer{os.Stdout},
 	}
 
-	fmt.Fprintln(os.Stdout, "| Dataset | Method | Runtime | Average Error | Uncompressed | Compressed | Compression Ratio |")
-	fmt.Fprintln(os.Stdout, "|-|-|-|-|-|-|-|")
+	if writeCSV {
+		fmt.Fprintln(os.Stdout, "\"dataset\", \"method\", \"runtime\", \"average error\", \"uncompressed\", \"compressed\", \"compression ratio\"")
+	} else {
+		fmt.Fprintln(os.Stdout, "| Dataset | Method | Runtime | Average Error | Uncompressed | Compressed | Compression Ratio |")
+		fmt.Fprintln(os.Stdout, "|-|-|-|-|-|-|-|")
+	}
 
-	runDataset(unitVectors, "10 million random", unitWriters).Write(os.Stdout)
+	if writeCSV {
+		runDataset(unitVectors, "10 million random", unitWriters).WriteCSV(os.Stdout)
+	} else {
+		runDataset(unitVectors, "10 million random", unitWriters).Write(os.Stdout)
+	}
+
 	for _, f := range availableFiles {
 		model, err := loadModel(filepath.Join(pathToLoadFrom, f))
 		if err != nil {
@@ -413,11 +492,30 @@ func main() {
 		extension := filepath.Ext(datasetName)
 		datasetName = datasetName[0 : len(datasetName)-len(extension)]
 
-		_, err = runDataset(calcFlatNormals(model), datasetName+" Flat", unitWriters).Write(os.Stdout)
+		flatNormals := calcFlatNormals(model)
+		flatName := fmt.Sprintf("%s flat", datasetName)
+		flatOut, _ := os.Create(flatName + ".obj")
+		writeObj(model, flatNormals, flatOut)
+		flatSet := runDataset(flatNormals, flatName, unitWriters)
+		if writeCSV {
+			_, err = flatSet.WriteCSV(os.Stdout)
+		} else {
+			_, err = flatSet.Write(os.Stdout)
+		}
 		if err != nil {
 			panic(err)
 		}
-		_, err = runDataset(calcSmoothNormals(model), datasetName+" Smooth", unitWriters).Write(os.Stdout)
+
+		smoothNormals := calcSmoothNormals(model)
+		smoothName := fmt.Sprintf("%s smooth", datasetName)
+		smoothOut, _ := os.Create(smoothName + ".obj")
+		writeObj(model, smoothNormals, smoothOut)
+		smoothSet := runDataset(smoothNormals, smoothName, unitWriters)
+		if writeCSV {
+			_, err = smoothSet.WriteCSV(os.Stdout)
+		} else {
+			_, err = smoothSet.Write(os.Stdout)
+		}
 		if err != nil {
 			panic(err)
 		}
