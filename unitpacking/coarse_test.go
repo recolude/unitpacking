@@ -4,25 +4,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/EliCDavis/vector"
 	"github.com/recolude/unitpacking/unitpacking"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCoarsePack24(t *testing.T) {
-	tests := []vector.Vector3{
-		vector.NewVector3(0, 1, 2),
-		vector.NewVector3(1, 0, 0),
-		vector.NewVector3(0, 1, 0),
-		vector.NewVector3(0, 0, 1),
-		vector.NewVector3(-1, 0, 0),
-		vector.NewVector3(0, -1, 0),
-		vector.NewVector3(0, 0, -1),
-		vector.NewVector3(-1, -1, -1),
-		vector.NewVector3(-1, 1, -1),
-	}
-
-	for _, tc := range tests {
+	for _, tc := range testVectors {
 		unit := tc.Normalized()
 		name := fmt.Sprintf("%.2f,%.2f,%.2f", unit.X(), unit.Y(), unit.Z())
 

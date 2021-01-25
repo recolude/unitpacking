@@ -152,6 +152,20 @@ func (oct32w oct32Writer) method() string                 { return "oct32" }
 func (oct32w oct32Writer) pack(v vector.Vector3) []byte   { return unitpacking.PackOct32(v) }
 func (oct32w oct32Writer) unpack(b []byte) vector.Vector3 { return unitpacking.UnpackOct32(b) }
 
+func assertLowErr(unpacked, original vector.Vector3) {
+	if math.Abs(original.X()-unpacked.X()) > 0.1 {
+		panic("errr")
+	}
+
+	if math.Abs(original.Y()-unpacked.Y()) > 0.1 {
+		panic("errr")
+	}
+
+	if math.Abs(original.Z()-unpacked.Z()) > 0.1 {
+		panic("errr")
+	}
+}
+
 func runBenchEnry(unitVectors []vector.Vector3, uw unitWriter) runResultEntry {
 	accErr := 0.0
 
@@ -176,6 +190,7 @@ func runBenchEnry(unitVectors []vector.Vector3, uw unitWriter) runResultEntry {
 		accErr += math.Abs(v.X() - unpacked.X())
 		accErr += math.Abs(v.Y() - unpacked.Y())
 		accErr += math.Abs(v.Z() - unpacked.Z())
+		assertLowErr(unpacked, v)
 		if math.IsNaN(accErr) {
 			panic("somehow got to nan: " + fmt.Sprint(x))
 		}
@@ -238,6 +253,10 @@ func calcFlatNormals(m mango.Mesh) []vector.Vector3 {
 		normals[tri.P1()] = normalized
 		normals[tri.P2()] = normalized
 		normals[tri.P3()] = normalized
+	}
+
+	for i, n := range normals {
+		normals[i] = n.Normalized()
 	}
 
 	return normals
@@ -455,7 +474,7 @@ func main() {
 	}
 
 	pathToLoadFrom := "../../../common-3d-test-models/data"
-	writeCSV := true
+	writeCSV := false
 	// pathToLoadFrom := os.Args[1]
 	availableFiles, err := getDatasetPathsFromDir(pathToLoadFrom)
 	if err != nil {

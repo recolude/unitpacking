@@ -13,11 +13,11 @@ func normalToByte(normal float64) byte {
 	if normal >= 1.0 {
 		return 255
 	}
-	return byte(math.Floor(normal*128.0)) + 127
+	return byte(math.Floor(normal*127.0)) + 128
 }
 
 func byteToNormal(b byte) float64 {
-	return (float64(b) - 127.0) / 128.0
+	return (float64(b) - 128.0) / 127.0
 }
 
 // PackCoarse24 will convert each component of the vector into a single byte,
