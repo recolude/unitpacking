@@ -134,17 +134,23 @@ func (alg24w alg24Writer) method() string                 { return "alg24" }
 func (alg24w alg24Writer) pack(v vector.Vector3) []byte   { return unitpacking.PackAlg24(v) }
 func (alg24w alg24Writer) unpack(b []byte) vector.Vector3 { return unitpacking.UnpackAlg24(b) }
 
-type oct24Writer struct{ out io.Writer }
-
-func (oct24w oct24Writer) method() string                 { return "oct24" }
-func (oct24w oct24Writer) pack(v vector.Vector3) []byte   { return unitpacking.PackOct24(v) }
-func (oct24w oct24Writer) unpack(b []byte) vector.Vector3 { return unitpacking.UnpackOct24(b) }
-
 type coarse24Writer struct{ out io.Writer }
 
 func (coarse24w coarse24Writer) method() string                 { return "coarse24" }
 func (coarse24w coarse24Writer) pack(v vector.Vector3) []byte   { return unitpacking.PackCoarse24(v) }
 func (coarse24w coarse24Writer) unpack(b []byte) vector.Vector3 { return unitpacking.UnpackCoarse24(b) }
+
+type oct16Writer struct{ out io.Writer }
+
+func (oct16w oct16Writer) method() string                 { return "oct16" }
+func (oct16w oct16Writer) pack(v vector.Vector3) []byte   { return unitpacking.PackOct16(v) }
+func (oct16w oct16Writer) unpack(b []byte) vector.Vector3 { return unitpacking.UnpackOct16(b) }
+
+type oct24Writer struct{ out io.Writer }
+
+func (oct24w oct24Writer) method() string                 { return "oct24" }
+func (oct24w oct24Writer) pack(v vector.Vector3) []byte   { return unitpacking.PackOct24(v) }
+func (oct24w oct24Writer) unpack(b []byte) vector.Vector3 { return unitpacking.UnpackOct24(b) }
 
 type oct32Writer struct{ out io.Writer }
 
@@ -484,6 +490,7 @@ func main() {
 	unitWriters := []unitWriter{
 		alg24Writer{os.Stdout},
 		coarse24Writer{os.Stdout},
+		oct16Writer{os.Stdout},
 		oct24Writer{os.Stdout},
 		oct32Writer{os.Stdout},
 	}

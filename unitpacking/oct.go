@@ -89,6 +89,35 @@ func UnpackOct24(b []byte) vector.Vector3 {
 	return FromOctUV(vector.NewVector2(cleanedX, cleanedY))
 }
 
+// PackOct16 maps a unit vector to a 2D UV of a octahedron, and then writes the
+// 2D coordinates to 2 bytes, 8bits per coordinate.
+func PackOct16(v vector.Vector3) []byte {
+	uvCords := MapToOctUV(v)
+
+	// 2 ^ 8 = 256;
+	x := uint(math.Floor(uvCords.X()*127) + 128)
+	y := uint(math.Floor(uvCords.Y()*127) + 128)
+	everything := (x << 8) | y
+
+	return []byte{
+		(byte)(everything & 0xFF),
+		(byte)((everything >> 8) & 0xFF),
+	}
+}
+
+// UnpackOct16 reads in two 8bit numbers and converts from 2D octahedron UV to
+// 3D unit sphere coordinates
+func UnpackOct16(b []byte) vector.Vector3 {
+	everything := uint(b[0]) | (uint(b[1]) << 8)
+	rawY := (int)((everything) & 0b11111111)
+	rawX := (int)(everything >> 8)
+
+	cleanedX := clamp((float64(rawX)-128.0)/127.0, -1.0, 1.0)
+	cleanedY := clamp((float64(rawY)-128.0)/127.0, -1.0, 1.0)
+
+	return FromOctUV(vector.NewVector2(cleanedX, cleanedY))
+}
+
 // MapToOctUV converts a 3D sphere's coordinates to a 2D octahedron UV
 func MapToOctUV(v vector.Vector3) vector.Vector2 {
 	// Project the sphere onto the octahedron, and then onto the xy plane
