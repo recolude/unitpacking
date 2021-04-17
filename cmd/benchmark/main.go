@@ -38,7 +38,7 @@ func (ds dataset) WriteCSV(out io.Writer) (int, error) {
 
 		runtimeOut := "NA"
 		if e.duration != nil {
-			runtimeOut = fmt.Sprintf("%s", *e.duration)
+			runtimeOut = fmt.Sprintf("%d", e.duration.Milliseconds())
 		}
 
 		avgErrOut := "NA"
@@ -139,6 +139,30 @@ type coarse24Writer struct{ out io.Writer }
 func (coarse24w coarse24Writer) method() string                 { return "coarse24" }
 func (coarse24w coarse24Writer) pack(v vector.Vector3) []byte   { return unitpacking.PackCoarse24(v) }
 func (coarse24w coarse24Writer) unpack(b []byte) vector.Vector3 { return unitpacking.UnpackCoarse24(b) }
+
+type octQuad16Writer struct{ out io.Writer }
+
+func (octQuad16w octQuad16Writer) method() string               { return "octquad16" }
+func (octQuad16w octQuad16Writer) pack(v vector.Vector3) []byte { return unitpacking.PackOctQuad16(v) }
+func (octQuad16w octQuad16Writer) unpack(b []byte) vector.Vector3 {
+	return unitpacking.UnpackOctQuad16(b)
+}
+
+type octQuad24Writer struct{ out io.Writer }
+
+func (octQuad24w octQuad24Writer) method() string               { return "octquad24" }
+func (octQuad24w octQuad24Writer) pack(v vector.Vector3) []byte { return unitpacking.PackOctQuad24(v) }
+func (octQuad24w octQuad24Writer) unpack(b []byte) vector.Vector3 {
+	return unitpacking.UnpackOctQuad24(b)
+}
+
+type octQuad32Writer struct{ out io.Writer }
+
+func (octQuad32w octQuad32Writer) method() string               { return "octquad32" }
+func (octQuad32w octQuad32Writer) pack(v vector.Vector3) []byte { return unitpacking.PackOctQuad32(v) }
+func (octQuad32w octQuad32Writer) unpack(b []byte) vector.Vector3 {
+	return unitpacking.UnpackOctQuad32(b)
+}
 
 type oct16Writer struct{ out io.Writer }
 
@@ -246,7 +270,6 @@ func getDatasetPathsFromDir(dir string) ([]string, error) {
 }
 
 func calcFlatNormals(m mango.Mesh) []vector.Vector3 {
-
 	normals := make([]vector.Vector3, len(m.Vertices()))
 	for i := range normals {
 		normals[i] = vector.Vector3One()
@@ -442,7 +465,6 @@ func runbaseline(unitVectors []vector.Vector3) runResultEntry {
 }
 
 func writeObj(mesh mango.Mesh, normals []vector.Vector3, out io.Writer) error {
-
 	for _, n := range mesh.Vertices() {
 		_, err := fmt.Fprintf(out, "v %f %f %f\n", n.X(), n.Y(), n.Z())
 		if err != nil {
@@ -493,6 +515,9 @@ func main() {
 		oct16Writer{os.Stdout},
 		oct24Writer{os.Stdout},
 		oct32Writer{os.Stdout},
+		octQuad16Writer{os.Stdout},
+		octQuad24Writer{os.Stdout},
+		octQuad32Writer{os.Stdout},
 	}
 
 	if writeCSV {
@@ -546,5 +571,4 @@ func main() {
 			panic(err)
 		}
 	}
-
 }

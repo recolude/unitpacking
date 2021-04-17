@@ -31,7 +31,7 @@ func multVect(a, b vector.Vector2) vector.Vector2 {
 // PackOct32 maps a unit vector to a 2D UV of a octahedron, and then writes the
 // 2D coordinates to 4 bytes, 2 bytes per coordinate.
 func PackOct32(v vector.Vector3) []byte {
-	uvCords := MapToOctUV(v)
+	uvCords := MapToOctUVPrecise(v, 32)
 
 	// 2 ^ 16 = 65,536;
 	x := uint(math.Floor(uvCords.X()*32767) + 32768)
@@ -47,14 +47,14 @@ func PackOct32(v vector.Vector3) []byte {
 }
 
 // UnpackOct32 reads in two 16bit numbers and converts from 2D octahedron UV to
-// 3D unit sphere coordinates
+// 3D unit sphere coordinates.
 func UnpackOct32(b []byte) vector.Vector3 {
 	everything := uint(b[0]) | (uint(b[1]) << 8) | (uint(b[2]) << 16) | (uint(b[3]) << 24)
 	rawY := (int)((everything) & 0xFFFF)
 	rawX := (int)(everything >> 16)
 
-	cleanedX := clamp((float64(rawX)-32768.0)/32767.0, -1.0, 1.0)
-	cleanedY := clamp((float64(rawY)-32768.0)/32767.0, -1.0, 1.0)
+	cleanedX := Clamp((float64(rawX)-32768.0)/32767.0, -1.0, 1.0)
+	cleanedY := Clamp((float64(rawY)-32768.0)/32767.0, -1.0, 1.0)
 
 	return FromOctUV(vector.NewVector2(cleanedX, cleanedY))
 }
@@ -62,7 +62,7 @@ func UnpackOct32(b []byte) vector.Vector3 {
 // PackOct24 maps a unit vector to a 2D UV of a octahedron, and then writes the
 // 2D coordinates to 3 bytes, 12bits per coordinate.
 func PackOct24(v vector.Vector3) []byte {
-	uvCords := MapToOctUV(v)
+	uvCords := MapToOctUVPrecise(v, 24)
 
 	// 2 ^ 12 = 4,096;
 	x := uint(math.Floor(uvCords.X()*2047) + 2048)
@@ -77,14 +77,14 @@ func PackOct24(v vector.Vector3) []byte {
 }
 
 // UnpackOct24 reads in two 12bit numbers and converts from 2D octahedron UV to
-// 3D unit sphere coordinates
+// 3D unit sphere coordinates.
 func UnpackOct24(b []byte) vector.Vector3 {
 	everything := uint(b[0]) | (uint(b[1]) << 8) | (uint(b[2]) << 16)
 	rawY := (int)((everything) & 0b111111111111)
 	rawX := (int)(everything >> 12)
 
-	cleanedX := clamp((float64(rawX)-2048.0)/2047.0, -1.0, 1.0)
-	cleanedY := clamp((float64(rawY)-2048.0)/2047.0, -1.0, 1.0)
+	cleanedX := Clamp((float64(rawX)-2048.0)/2047.0, -1.0, 1.0)
+	cleanedY := Clamp((float64(rawY)-2048.0)/2047.0, -1.0, 1.0)
 
 	return FromOctUV(vector.NewVector2(cleanedX, cleanedY))
 }
@@ -92,7 +92,7 @@ func UnpackOct24(b []byte) vector.Vector3 {
 // PackOct16 maps a unit vector to a 2D UV of a octahedron, and then writes the
 // 2D coordinates to 2 bytes, 8bits per coordinate.
 func PackOct16(v vector.Vector3) []byte {
-	uvCords := MapToOctUV(v)
+	uvCords := MapToOctUVPrecise(v, 16)
 
 	// 2 ^ 8 = 256;
 	x := uint(math.Floor(uvCords.X()*127) + 128)
@@ -106,23 +106,63 @@ func PackOct16(v vector.Vector3) []byte {
 }
 
 // UnpackOct16 reads in two 8bit numbers and converts from 2D octahedron UV to
-// 3D unit sphere coordinates
+// 3D unit sphere coordinates.
 func UnpackOct16(b []byte) vector.Vector3 {
 	everything := uint(b[0]) | (uint(b[1]) << 8)
 	rawY := (int)((everything) & 0b11111111)
 	rawX := (int)(everything >> 8)
 
-	cleanedX := clamp((float64(rawX)-128.0)/127.0, -1.0, 1.0)
-	cleanedY := clamp((float64(rawY)-128.0)/127.0, -1.0, 1.0)
+	cleanedX := Clamp((float64(rawX)-128.0)/127.0, -1.0, 1.0)
+	cleanedY := Clamp((float64(rawY)-128.0)/127.0, -1.0, 1.0)
 
 	return FromOctUV(vector.NewVector2(cleanedX, cleanedY))
 }
 
-// MapToOctUV converts a 3D sphere's coordinates to a 2D octahedron UV
+// MapToOctUVPrecise brute force finds an optimal UV coordinate that minimizes
+// rounding error.
+func MapToOctUVPrecise(v vector.Vector3, n int) vector.Vector2 {
+	s := MapToOctUV(v) // Remap to the square
+
+	// Each snorm’s max value interpreted as an integer,
+	// e.g., 127.0 for snorm8
+	M := float64(int(1)<<((n/2)-1)) - 1.0
+
+	// Remap components to snorm(n/2) precision...with floor instead
+	// of round (see equation 1)
+	s = floorVec2(clampVec2(s, -1.0, 1.0).MultByConstant(M)).MultByConstant(1.0 / M)
+	bestRepresentation := s
+	highestCosine := FromOctUV(s).Dot(v)
+
+	// Test all combinations of floor and ceil and keep the best.
+	// Note that at +/- 1, this will exit the square... but that
+	// will be a worse encoding and never win.
+	for i := 0; i <= 1; i++ {
+		for j := 0; j <= 1; j++ {
+			// This branch will be evaluated at compile time
+			if (i != 0) || (j != 0) {
+				// Offset the bit pattern (which is stored in floating
+				// point!) to effectively change the rounding mode
+				// (when i or j is 0: floor, when it is one: ceiling)
+				candidate := vector.NewVector2(float64(i), float64(j)).MultByConstant(1 / M).Add(s)
+				cosine := FromOctUV(candidate).Dot(v)
+				if cosine > highestCosine {
+					bestRepresentation = candidate
+					highestCosine = cosine
+				}
+			}
+		}
+	}
+
+	return bestRepresentation
+}
+
+// MapToOctUV converts a 3D sphere's coordinates to a 2D octahedron UV.
 func MapToOctUV(v vector.Vector3) vector.Vector2 {
 	// Project the sphere onto the octahedron, and then onto the xy plane
 	// vec2 p = v.xy * (1.0 / (abs(v.x) + abs(v.y) + abs(v.z)));
-	p := vector.NewVector2(v.X(), v.Y()).MultByConstant(1.0 / (math.Abs(v.X()) + math.Abs(v.Y()) + math.Abs(v.Z())))
+	p := vector.
+		NewVector2(v.X(), v.Y()).
+		MultByConstant(1.0 / (math.Abs(v.X()) + math.Abs(v.Y()) + math.Abs(v.Z())))
 	if v.Z() > 0 {
 		return p
 	}
